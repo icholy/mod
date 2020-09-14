@@ -208,8 +208,12 @@ func Check(path, version string) error {
 			Err:  &InvalidVersionError{Version: version, Err: errors.New("not a semantic version")},
 		}
 	}
-	_, pathMajor, _ := SplitPathVersion(path)
+	prefix, pathMajor, _ := SplitPathVersion(path)
 	if err := CheckPathMajor(version, pathMajor); err != nil {
+		var vErr *InvalidVersionError
+		if errors.As(err, &vErr) {
+			vErr.Err = fmt.Errorf("path should be %s", JoinPathVersion(prefix, semver.Major(vErr.Version)))
+		}
 		return &ModuleError{Path: path, Err: err}
 	}
 	return nil
@@ -475,6 +479,19 @@ var badWindowsNames = []string{
 	"LPT7",
 	"LPT8",
 	"LPT9",
+}
+
+// JoinPathVersion returns the module path with provided major version.
+// As a special case, gopkg.in paths are recognized directly;
+// they
+func JoinPathVersion(path string, pathMajor string) string {
+	if strings.HasPrefix(path, "gopkg.in/") {
+		return path + "." + pathMajor
+	}
+	if pathMajor == "v0" || pathMajor == "v1" {
+		return path
+	}
+	return path + "/" + pathMajor
 }
 
 // SplitPathVersion returns prefix and major version such that prefix+pathMajor == path
